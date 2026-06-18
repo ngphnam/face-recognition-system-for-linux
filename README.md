@@ -77,6 +77,45 @@ Chương trình sẽ hiển thị menu:
 ╚═══════════════════════════════════════════════════╝
 ```
 
+## 🔒 Tích hợp xác thực khuôn mặt hệ thống (Linux PAM)
+
+Dự án cung cấp một module PAM tùy chỉnh trong thư mục `pam_module`, cho phép bạn đăng nhập máy tính hoặc chạy lệnh `sudo` bằng khuôn mặt (có thể dùng để thay thế `howdy`).
+
+### Bước 1: Cài đặt Module PAM
+Di chuyển vào thư mục `pam_module` và chạy script cài đặt:
+```bash
+cd pam_module
+sudo bash install.sh
+```
+Script sẽ sao chép các file hệ thống và import dữ liệu khuôn mặt đã đăng ký từ `known_faces/` sang thư mục an toàn của PAM (`/var/lib/face-auth`).
+
+### Bước 2: Quản lý và Kiểm tra
+Sử dụng công cụ `face-auth` để quản lý khuôn mặt xác thực hệ thống:
+- Đăng ký khuôn mặt mới: `sudo face-auth add`
+- Kiểm tra danh sách: `sudo face-auth list`
+- **Test nhận diện (BẮT BUỘC):** `sudo face-auth test`
+
+> ⚠️ **Chú ý:** Luôn phải test thử và đảm bảo thành công trước khi gắn vào PAM để tránh bị khóa ngoài hệ thống.
+
+### Bước 3: Gắn vào hệ thống PAM
+*Lưu ý: Luôn giữ một cửa sổ Terminal có quyền `root` mở sẵn để phòng trường hợp cấu hình sai cần khôi phục.*
+
+Thay thế cấu hình PAM hiện tại (ví dụ: đang dùng `pam_howdy.so`):
+```bash
+# 1. Cho lệnh sudo
+sudo sed -i 's/auth.*pam_howdy.so/auth      [success=done default=ignore]  pam_exec.so  seteuid \/usr\/local\/lib\/face-auth\/pam_face_auth.py/' /etc/pam.d/sudo
+
+# 2. Cho màn hình đăng nhập / khóa
+sudo sed -i 's/auth.*pam_howdy.so/auth      [success=done default=ignore]  pam_exec.so  seteuid \/usr\/local\/lib\/face-auth\/pam_face_auth.py/' /etc/pam.d/system-auth
+sudo sed -i 's/auth.*pam_howdy.so/auth      [success=done default=ignore]  pam_exec.so  seteuid \/usr\/local\/lib\/face-auth\/pam_face_auth.py/' /etc/pam.d/gdm-password
+```
+
+### Bước 4: Gỡ cài đặt
+```bash
+cd pam_module
+sudo bash uninstall.sh
+```
+
 ## 📂 Cấu trúc project
 
 ```
