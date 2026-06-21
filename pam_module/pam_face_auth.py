@@ -1,9 +1,11 @@
-#!/home/nguyenpq/Downloads/face-recognition-system/.venv/bin/python
+#!/usr/bin/env python3
 import os
 import sys
 import time
 import syslog
+# pyrefly: ignore [missing-import]
 import cv2
+# pyrefly: ignore [missing-import]
 import face_recognition
 import numpy as np
 
@@ -13,6 +15,11 @@ DATA_DIR = "/var/lib/face-auth"
 
 def log(msg):
     syslog.syslog(syslog.LOG_INFO, f"pam_face_auth: {msg}")
+
+def print_user(msg):
+    # Khi dùng pam_exec.so với tuỳ chọn 'stdout', output từ stdout sẽ được 
+    # chuyển tiếp chuẩn xác qua PAM_TEXT_INFO (giống như cách Howdy làm bằng C++)
+    print(f"[Face Auth] {msg}", flush=True)
 
 def auth(username):
     user_dir = os.path.join(DATA_DIR, username)
@@ -39,13 +46,23 @@ def auth(username):
 
     start_time = time.time()
     success = False
+    dark_frames_count = 0
+    total_frames = 0
+    DARK_THRESHOLD = 80  # Tăng ngưỡng lên 80 để dễ nhận diện môi trường tối hơn
 
+    print_user(f"Attempting facial authentication for {username}...")
     log(f"Starting face auth for {username}...")
 
     while time.time() - start_time < TIMEOUT_SECS:
         ret, frame = cap.read()
         if not ret:
             continue
+
+        total_frames += 1
+        # Tính độ sáng trung bình của frame
+        brightness = np.mean(frame)
+        if brightness < DARK_THRESHOLD:
+            dark_frames_count += 1
 
         small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
         rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
@@ -67,9 +84,15 @@ def auth(username):
 
     cap.release()
     if success:
+        print_user(f"Identified face as {username}")
         log(f"Face recognized successfully for {username}")
     else:
-        log(f"Face not recognized for {username} within timeout")
+        if total_frames > 0 and (dark_frames_count / total_frames) > 0.7:
+            print_user("The environment is too dark, Face ID cannot be scanned")
+            log(f"Face not recognized for {username} - Environment too dark (avg brightness < {DARK_THRESHOLD})")
+        else:
+            print_user("Facial authentication failed")
+            log(f"Face not recognized for {username} within timeout")
     
     return success
 

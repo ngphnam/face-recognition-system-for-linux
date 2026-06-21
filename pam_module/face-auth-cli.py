@@ -1,8 +1,10 @@
-#!/home/nguyenpq/Downloads/face-recognition-system/.venv/bin/python
+#!/usr/bin/env python3
 import os
 import sys
 import shutil
+# pyrefly: ignore [missing-import]
 import cv2
+# pyrefly: ignore [missing-import]
 import face_recognition
 import numpy as np
 from pathlib import Path
@@ -18,7 +20,7 @@ def add_face_webcam(username, num_samples=5):
     user_dir = init_user_dir(username)
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("❌ Không thể mở webcam!")
+        print("Cannot open webcam!")
         return False
 
     encodings_list = []
@@ -26,8 +28,8 @@ def add_face_webcam(username, num_samples=5):
     idx = len(existing_images)
     captured = 0
 
-    print(f"\n📸 Chuẩn bị chụp {num_samples} ảnh cho '{username}'.")
-    print("   Nhấn [SPACE] để chụp, [Q] để huỷ.\n")
+    print(f"\n Preparing to capture {num_samples} images for '{username}'.")
+    print("   Press [SPACE] to capture, [Q] to cancel.\n")
 
     while captured < num_samples:
         ret, frame = cap.read()
@@ -38,7 +40,7 @@ def add_face_webcam(username, num_samples=5):
         h, w = display.shape[:2]
         cv2.putText(
             display,
-            f"Captured: {captured}/{num_samples}  |  SPACE=chup  Q=huy",
+            f"Captured: {captured}/{num_samples}  |  SPACE=capture  Q=cancel",
             (10, h - 20),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,
@@ -51,16 +53,16 @@ def add_face_webcam(username, num_samples=5):
         for top, right, bottom, left in locations:
             cv2.rectangle(display, (left, top), (right, bottom), (0, 255, 0), 2)
 
-        cv2.imshow("Dang ky khuon mat PAM", display)
+        cv2.imshow("PAM Face Registration", display)
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord("q"):
-            print("⚠️  Đã huỷ.")
+            print("Cancelled.")
             break
 
         if key == ord(" "):
             if not locations:
-                print("   ⚠️  Không phát hiện khuôn mặt, thử lại!")
+                print("No face detected, try again!")
                 continue
 
             encs = face_recognition.face_encodings(rgb, locations)
@@ -70,7 +72,7 @@ def add_face_webcam(username, num_samples=5):
                 img_path = user_dir / f"face_{idx}.jpg"
                 cv2.imwrite(str(img_path), frame)
                 encodings_list.append(encs[0])
-                print(f"   ✅ Ảnh {captured}/{num_samples} đã lưu.")
+                print(f"   Image {captured}/{num_samples} saved.")
 
     cap.release()
     cv2.destroyAllWindows()
@@ -88,10 +90,10 @@ def add_face_webcam(username, num_samples=5):
 def list_faces():
     data_path = Path(DATA_DIR)
     if not data_path.exists():
-        print("Chưa có database.")
+        print("Database not found.")
         return
     
-    print("\nDanh sách khuôn mặt đã đăng ký:")
+    print("\nRegistered faces list:")
     for user_dir in data_path.iterdir():
         if user_dir.is_dir():
             enc_file = user_dir / "encodings.npy"
@@ -102,43 +104,43 @@ def remove_face(username):
     user_dir = Path(DATA_DIR) / username
     if user_dir.exists():
         shutil.rmtree(user_dir)
-        print(f"Đã xoá dữ liệu của user '{username}'.")
+        print(f"Deleted data for user '{username}'.")
     else:
-        print(f"Không tìm thấy dữ liệu của user '{username}'.")
+        print(f"Data for user '{username}' not found.")
 
 def main():
     if os.geteuid() != 0:
-        print("Vui lòng chạy lệnh bằng sudo!")
+        print("Please run this command with sudo!")
         sys.exit(1)
 
     if len(sys.argv) < 2:
-        print("Sử dụng: face-auth [add|list|remove|test]")
+        print("Usage: face-auth [add|list|remove|test]")
         sys.exit(1)
 
     cmd = sys.argv[1]
     
     if cmd == "add":
-        username = input("Nhập username Linux: ").strip()
+        username = input("Enter Linux username: ").strip()
         if username:
             add_face_webcam(username)
     elif cmd == "list":
         list_faces()
     elif cmd == "remove":
-        username = input("Nhập username Linux cần xoá: ").strip()
+        username = input("Enter Linux username to remove: ").strip()
         if username:
             remove_face(username)
     elif cmd == "test":
-        username = input("Nhập username Linux cần test: ").strip()
+        username = input("Enter Linux username to test: ").strip()
         if username:
             import subprocess
-            print("Đang chạy test (có 5s timeout)...")
+            print("Running test (5s timeout)...")
             res = subprocess.run(["/usr/local/lib/face-auth/pam_face_auth.py", username])
             if res.returncode == 0:
-                print("✅ Test thành công: Nhận diện đúng!")
+                print("Test successful: Face recognized!")
             else:
-                print("❌ Test thất bại: Không nhận diện được hoặc timeout.")
+                print("Test failed: Face not recognized or timeout.")
     else:
-        print("Lệnh không hợp lệ.")
+        print("Invalid command.")
 
 if __name__ == "__main__":
     main()

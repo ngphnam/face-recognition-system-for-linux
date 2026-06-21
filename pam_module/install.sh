@@ -1,6 +1,6 @@
 #!/bin/bash
 if [ "$EUID" -ne 0 ]
-  then echo "Vui lòng chạy script bằng sudo!"
+  then echo "Please run the script with sudo!"
   exit
 fi
 
@@ -10,26 +10,36 @@ mkdir -p /var/lib/face-auth
 cp pam_face_auth.py /usr/local/lib/face-auth/
 cp face-auth-cli.py /usr/local/lib/face-auth/
 
+echo "Setting up Python Virtual Environment (venv)..."
+python3 -m venv /usr/local/lib/face-auth/venv
+/usr/local/lib/face-auth/venv/bin/pip install -r ../requirements.txt
+
+echo "Updating shebang for executable files..."
+sed -i '1s|.*|#!/usr/local/lib/face-auth/venv/bin/python|' /usr/local/lib/face-auth/pam_face_auth.py
+sed -i '1s|.*|#!/usr/local/lib/face-auth/venv/bin/python|' /usr/local/lib/face-auth/face-auth-cli.py
+
 chmod +x /usr/local/lib/face-auth/pam_face_auth.py
 chmod +x /usr/local/lib/face-auth/face-auth-cli.py
 
 ln -sf /usr/local/lib/face-auth/face-auth-cli.py /usr/local/bin/face-auth
 
 # Import existing faces if user wants
-echo "Đang import faces từ thư mục known_faces/ (nếu có)..."
+echo "Importing faces from known_faces/ directory (if any)..."
 if [ -d "../known_faces" ]; then
     for dir in ../known_faces/*/; do
         if [ -d "$dir" ]; then
             name=$(basename "$dir")
-            echo "Tìm thấy user '$name', đang chuyển vào /var/lib/face-auth/nguyenpq/ ..."
-            # Vì yêu cầu có câu hỏi: "Bạn muốn import tất cả faces hiện có vào user Linux nguyenpq?"
-            # Mặc định mình sẽ gộp hết vào nguyenpq cho tiện
-            mkdir -p /var/lib/face-auth/nguyenpq
+            # By default, we merge everything into $SUDO_USER for convenience
+            if [ -n "$SUDO_USER" ]; then
+                target_user="$SUDO_USER"
+            else
+                target_user="root"
+            fi
+            echo "Found user '$name', moving to /var/lib/face-auth/$target_user/ ..."
+            mkdir -p /var/lib/face-auth/$target_user
             if [ -f "$dir/encodings.npy" ]; then
-                # Cần ghép file npy nếu đã tồn tại, nhưng để đơn giản, ta chỉ copy lần đầu
-                # Tốt nhất là dùng CLI để add lại hoặc import thủ công
-                cp -n "$dir"/*.jpg /var/lib/face-auth/nguyenpq/ 2>/dev/null
-                cp -n "$dir/encodings.npy" /var/lib/face-auth/nguyenpq/ 2>/dev/null
+                cp -n "$dir"/*.jpg /var/lib/face-auth/$target_user/ 2>/dev/null
+                cp -n "$dir/encodings.npy" /var/lib/face-auth/$target_user/ 2>/dev/null
             fi
         fi
     done
@@ -37,5 +47,5 @@ fi
 chown -R root:root /var/lib/face-auth
 chmod -R 755 /var/lib/face-auth
 
-echo "Cài đặt file thành công!"
-echo "Chạy 'sudo face-auth test' để kiểm tra trước khi sửa PAM config."
+echo "Files installed successfully!"
+echo "Run 'sudo face-auth test' to check before modifying PAM config."
